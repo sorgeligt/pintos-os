@@ -30,6 +30,52 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
+
+/* List of threads and times */
+List* q = NULL;
+List* root = NULL;
+
+/* Clear memory */
+void clear_list() {
+    while (root != NULL && (root->time) <= timer_ticks()) {
+        List* tmp = root->next;
+        free(root);
+        root = tmp;
+    }
+}
+
+/* Add with sort*/
+void smart_add(int64_t ticks) {
+    clear_list();
+    if (q == NULL) {
+        q = (List*) malloc(sizeof(List));
+        q->next = NULL;
+        q->time = ticks + timer_ticks();
+        q->thr = thread_current();
+        root = q;
+    } else {
+        List* current = q;
+        List* prev = NULL;
+        List* new_el = (List*)malloc(sizeof(List));
+        new_el->time = ticks + timer_ticks();
+        new_el->thr = thread_current();
+
+        while (current != NULL && new_el->time > current->time) {
+            prev = current;
+            current = current->next;
+        }
+        if (prev == NULL) {
+            memcpy(current, q, sizeof(List));
+            q = new_el;
+        }
+        else {
+            prev->next = new_el;
+        }
+        new_el->next = current;
+    }
+}
+
+
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -84,16 +130,21 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-/* Sleeps for approximately TICKS timer ticks.  Interrupts must
-   be turned on. */
+/* Sleeps for approximately TICKS timer ticks.  */
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
+    timer_ticks();
 
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+    ASSERT(intr_get_level() == INTR_ON);
+
+    enum intr_level old_level = intr_disable ();
+
+
+    smart_add(ticks);
+
+    thread_block();
+    intr_set_level(old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -170,8 +221,13 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
-  ticks++;
-  thread_tick ();
+    ticks++;
+    thread_tick();
+
+    while (q != NULL && q->time <= timer_ticks()) {
+        thread_unblock(q->thr);
+        q = q->next;
+    }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

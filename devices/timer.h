@@ -4,6 +4,17 @@
 #include <round.h>
 #include <stdint.h>
 
+/* New function and struct*/
+typedef struct List{
+    int64_t time;
+    struct thread *thr;
+    struct List* next;
+}List;
+
+void clear_list();
+void smart_add(int64_t);
+
+
 /* Number of timer interrupts per second. */
 #define TIMER_FREQ 100
 
