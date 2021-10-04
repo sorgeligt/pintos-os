@@ -130,21 +130,20 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-/* Sleeps for approximately TICKS timer ticks.  */
+/* Sleeps for approximately TICKS timer ticks. Interrupts must be turned on. */
 void
 timer_sleep (int64_t ticks) 
 {
-    timer_ticks();
 
     ASSERT(intr_get_level() == INTR_ON);
 
-    enum intr_level old_level = intr_disable ();
-
+    enum intr_level old_level = intr_disable (); // Disables interrupts and returns the previous interrupt status.
 
     smart_add(ticks);
 
     thread_block();
-    intr_set_level(old_level);
+
+    intr_set_level(old_level); //Enables or disables interrupts as specified by LEVEL and returns the previous interrupt status. 
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -222,7 +221,7 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
     ticks++;
-    thread_tick();
+    thread_tick(); 
 
     while (q != NULL && q->time <= timer_ticks()) {
         thread_unblock(q->thr);
